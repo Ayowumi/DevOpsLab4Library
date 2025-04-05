@@ -1,0 +1,55 @@
+trigger:
+  - main
+
+pool:
+  name: "COMP367-SelfHosted"
+
+variables:
+  solution: "**/*.sln"
+  buildPlatform: "Any CPU"
+  buildConfiguration: "Release"
+
+steps:
+  - task: NuGetToolInstaller@1
+    inputs:
+      versionSpec: "6.x"
+
+  - script: dotnet --list-sdks
+    displayName: "Check Installed .NET SDKs"
+
+  - script: |
+      dotnet clean "$(Build.SourcesDirectory)/ClassLibraryProjects.sln" --configuration $(buildConfiguration)
+    displayName: "Clean Solution"
+
+  - task: DotNetCoreCLI@2
+    displayName: "Restore Packages"
+    inputs:
+      command: "restore"
+      projects: "**/*.csproj"
+
+  - script: |
+      dotnet build "$(Build.SourcesDirectory)/ClassLibraryProjects.sln" --configuration $(buildConfiguration)
+    displayName: "Build Solution"
+
+  - script: |
+      dotnet test "$(Build.SourcesDirectory)/ClassLibraryProjects.sln" --configuration $(buildConfiguration)
+    displayName: "Run Tests"
+
+  - task: DotNetCoreCLI@2
+    displayName: "Pack NuGet Package"
+    inputs:
+      command: "pack"
+      packagesToPack: "**/StringLibrary.csproj"
+      configuration: "$(buildConfiguration)"
+      outputDir: "$(Build.ArtifactStagingDirectory)"
+      versioningScheme: "byPrereleaseNumber"
+      majorVersion: "1"
+      minorVersion: "1"
+      patchVersion: "$(Build.BuildId)"
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Push NuGet Package to Azure Artifacts'
+    inputs:
+      command: 'push'
+      publishVstsFeed: 'COMP387 Lab4 – AzureDevOps CICD/Comp367-Lab4'
+      searchPatternPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
